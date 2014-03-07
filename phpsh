@@ -1,0 +1,60 @@
+#!/usr/bin/php
+<?php
+
+/* prevent control-c exit  ie, use exit() */
+pcntl_signal(SIGTERM, "signal_handler");
+pcntl_signal(SIGINT, "signal_handler");
+
+function signal_handler($signal) {}
+
+//$phpsh_cwd = $_SERVER['HOME'];
+$phpsh_cwd='/tmp';
+
+include('begin.php');
+
+$phpsh_i=0;
+$phpsh_ticker=0;
+
+while ($phpsh_i==0) {
+
+	$phpsh_ticker++;
+
+	$phpsh_line = readline('p['.$phpsh_ticker.'] > ');
+
+	if ($phpsh_line=='help') $phpsh_line='help()';
+	if ($phpsh_line=='version') $phpsh_line='version()';
+	if ($phpsh_line=='history') $phpsh_line='history()';
+
+	if (substr($phpsh_line,strlen($phpsh_line)-1,1)!=';') $phpsh_line.=';';
+	readline_add_history($phpsh_line);
+
+	$phpsh_chk_fun = str_replace(';','',$phpsh_line);
+	$phpsh_t = explode('(',$phpsh_chk_fun);
+	$phpsh_chk_fun = array_shift($phpsh_t);
+
+	if (function_exists($phpsh_chk_fun)) {
+		echo eval($phpsh_line);
+	} else {
+	/* is it safe? eval will crash the thing if it gets some bad php */
+	$phpsh_file = $phpsh_cwd.'/php-'.rand(0,99999);
+	//touch($phpsh_file);
+	//chmod($phpsh_file,600);
+	$phpsh_fp=fopen($phpsh_file,'w');
+	fwrite($phpsh_fp,'<?php eval("'.str_replace('"',"\\\"",$phpsh_line).'");?>');
+	fclose($phpsh_fp);
+	$phpsh_t=`/usr/bin/env php -q $phpsh_file 2>&1`;
+	unlink($phpsh_file);
+	if (stristr($phpsh_t,'fatal')) {
+		$phpsh_t = str_replace($phpsh_file.'(1)','the command.',$phpsh_t);
+		$phpsh_t = str_replace(": eval()'d code on line 1",'',$phpsh_t);
+		echo $phpsh_t;
+	} else {
+		echo eval($phpsh_line);
+	}
+	}
+
+	unset($phpsh_line);
+	include('end.php');
+}
+
+
